@@ -1,7 +1,7 @@
 📦 Dog-Eared — GitHub Setup & Workflow Standard
 Purpose
 
-This document captures the initial GitHub integration process for the Dog-Eared project and establishes the long-term development workflow standard.
+This document captures the full GitHub integration process for the Dog-Eared project and establishes the permanent development workflow standard.
 
 This workflow ensures:
 
@@ -17,6 +17,10 @@ CI compatibility
 
 Local-first fast development
 
+Structured engineering documentation
+
+Dog-Eared is now a disciplined, version-controlled software project.
+
 🧰 Initial Git Setup (Windows)
 1. Install Git
 
@@ -24,9 +28,7 @@ Download from:
 
 https://git-scm.com/download/win
 
-During installation:
-
-Select:
+During installation select:
 
 Git from the command line and also from 3rd-party software
 
@@ -42,7 +44,7 @@ Verify:
 
 git config --global --list
 
-📁 Initialize Local Repo
+📁 Initialize Local Repository
 
 Inside project folder:
 
@@ -106,25 +108,29 @@ git commit -m "Initial commit: Dog-Eared baseline"
 git remote add origin https://github.com/relicthegray/dog-eared.git
 git remote -v
 
-⬆️ Push to GitHub
+⬆️ First Push (When Remote Already Has Commits)
 
-If remote contains starter README:
+If GitHub repo contains a starter README or initial commit, pushing may fail with:
+
+non-fast-forward error
+
+In that case:
 
 git pull origin main --allow-unrelated-histories
 
 
-Resolve conflict (if README):
+If merge conflict occurs (e.g., README):
 
 git checkout --ours README.md
 git add README.md
 git commit -m "Resolve README merge conflict"
 
 
-Then:
+Then push:
 
 git push -u origin main
 
-🧼 Line Ending Standardization
+🧼 Line Ending Standardization (Windows Best Practice)
 
 Set Windows behavior:
 
@@ -149,10 +155,29 @@ git add --renormalize .
 git commit -m "Normalize line endings"
 git push
 
-🚀 Official Development Workflow (Required Going Forward)
-❌ Never develop directly on main
+📚 Documentation Structure Standard
 
-Always create a feature branch.
+All engineering documentation lives in:
+
+PROJECT_SOURCES/
+
+
+Example structure:
+
+PROJECT_SOURCES/
+    PROJECT_STATE.md
+    github-setup.md
+    feature-<feature-name>.md
+
+
+Major decisions, feature sessions, and architectural changes must be documented here.
+
+Documentation is version-controlled like code.
+
+🚀 Official Development Workflow
+❌ Never Develop Directly on main
+
+Always use a branch.
 
 🧪 Starting a Feature
 git checkout -b feature/<feature-name>
@@ -174,9 +199,11 @@ Edit files
 
 Run Docker / Vite
 
-Test fast
+Test immediately
 
 Iterate freely
+
+Local development speed is unchanged by Git.
 
 💾 Commit Work
 git add .
@@ -186,19 +213,46 @@ git commit -m "Clear, descriptive commit message"
 git push -u origin feature/<feature-name>
 
 🔀 Merge Strategy
-
-Preferred:
+Preferred (Recommended Habit)
 
 Open Pull Request on GitHub
 
 Merge via GitHub UI
 
-Alternative (local merge):
-
+Alternative (Local Merge)
 git checkout main
 git pull
 git merge feature/<feature-name>
 git push
+
+🧹 Branch Cleanup After Merge
+
+After merging a feature branch:
+
+Delete local branch:
+
+git branch -d feature/<feature-name>
+
+
+Delete remote branch:
+
+git push origin --delete feature/<feature-name>
+
+🔍 Verifying Branch State
+
+To visualize history:
+
+git log --oneline --decorate --graph --all
+
+
+To verify files exist in main:
+
+git ls-tree -r --name-only main
+
+
+To check current status:
+
+git status
 
 🔒 Protect main Branch (Recommended)
 
@@ -232,49 +286,40 @@ Deployment readiness
 
 Long-term maintainability
 
+Structured documentation memory
+
 Dog-Eared is no longer “a folder of files.”
 
 It is a versioned, structured software project.
 
-📚 Recommended Structure for Future Chat Sessions
-
-Yes — saving major ChatGPT sessions is absolutely the right move.
-
-I recommend:
-
-docs/
-    github-setup.md
-    feature-owned-shelf-polish.md
-    feature-migrations.md
-    ui-refactor-session.md
-
-
-Each file should contain:
-
-Goal
-
-Files changed
-
-Commands used
-
-Architectural decisions
-
-Lessons learned
-
-This builds a living engineering journal.
-
 🏁 Status
+
+Git installed and configured
+
+Repository initialized
+
+Remote connected
+
+Non-fast-forward handled correctly
+
+Merge conflict resolved properly
+
+Line endings standardized
+
+Documentation centralized
+
+Branch workflow established
+
+Cleanup discipline established
 
 GitHub workflow successfully integrated.
 
-Dog-Eared development standard established.
+Dog-Eared development standard permanently established.
 
-If you’d like, I can also generate:
+If you’d like next, I can generate a reusable:
 
-A reusable Feature Session Template.md
+feature-session-template.md
 
-Or a structured Engineering Journal Template
+or engineering-journal-template.md
 
-Or a clean /docs folder structure plan
-
-Your project just leveled up.
+so every new feature session follows the same disciplined pattern.
