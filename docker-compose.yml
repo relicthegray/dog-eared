@@ -1,0 +1,23 @@
+services:
+  api:
+    build:
+      context: ./backend
+    env_file: .env
+    volumes:
+      - ./backend:/app
+      - ./docker-data:/data
+    ports:
+      - "8000:8000"
+    command: >
+      bash -lc "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  web:
+    build:
+      context: ./frontend
+    env_file: .env
+    volumes:
+      - ./frontend:/web
+    ports:
+      - "5173:5173"
+    command: >
+      bash -lc "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
