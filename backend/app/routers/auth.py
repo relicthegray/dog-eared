@@ -6,9 +6,10 @@ from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core.deps import get_current_user
+from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_session, init_db
-from app.models import User, Invite
+from app.models import Invite, User
 
 router = APIRouter()
 
@@ -122,7 +123,6 @@ def register(payload: RegisterIn, session: Session = Depends(get_session)):
     session.commit()
     return {"ok": True}
 
-from app.core.deps import get_current_user
 
 @router.get("/me")
 def me(user: User = Depends(get_current_user)):
