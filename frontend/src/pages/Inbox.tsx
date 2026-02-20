@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import PageShell from "../components/PageShell";
-import { apiGet } from "../app/api";
+import { apiGet, apiPost } from "../app/api";
 
 type IntakeItem = {
   id: string;
@@ -17,6 +17,11 @@ export default function Inbox() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Quick Capture state
+  const [tiktokUrl, setTiktokUrl] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
   async function load() {
     setError(null);
     setLoading(true);
@@ -30,6 +35,41 @@ export default function Inbox() {
     }
   }
 
+  async function createFromQuickCapture() {
+    setError(null);
+
+    const url = tiktokUrl.trim();
+    const noteText = notes.trim();
+
+    if (!url && !noteText) {
+      setError("Paste a TikTok URL or add a note.");
+      return;
+    }
+
+    // V1 behavior (per feature doc):
+    // - URL only => raw_text = "TikTok capture"
+    // - Notes only => raw_text = notes
+    // - Both => raw_text = notes
+    const raw_text = noteText || (url ? "TikTok capture" : "");
+
+    setSaving(true);
+    try {
+      await apiPost("/intake", {
+        raw_text,
+        source_post_url: url || null,
+        source_id: null,
+      });
+
+      setTiktokUrl("");
+      setNotes("");
+      await load();
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to save capture.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   useEffect(() => {
     load();
   }, []);
@@ -37,6 +77,44 @@ export default function Inbox() {
   return (
     <PageShell title="Inbox">
       <div className="space-y-3">
+        {/* Quick Capture Card */}
+        <div className="space-y-3 rounded-2xl border bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-slate-900">Quick Capture</h2>
+            <span className="text-xs text-slate-500">TikTok-friendly</span>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs text-slate-600">TikTok URL</label>
+            <input
+              value={tiktokUrl}
+              onChange={(e) => setTiktokUrl(e.target.value)}
+              placeholder="https://www.tiktok.com/..."
+              className="w-full rounded-xl border px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs text-slate-600">Notes (optional)</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Title hint, author, why you saved it..."
+              className="w-full rounded-xl border px-3 py-2 text-sm"
+              rows={3}
+            />
+          </div>
+
+          <button
+            onClick={createFromQuickCapture}
+            disabled={saving}
+            className="w-full rounded-xl border bg-white px-4 py-2 text-sm shadow-sm hover:bg-slate-50 disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Save to Inbox"}
+          </button>
+        </div>
+
+        {/* Existing Refresh Button */}
         <button
           onClick={load}
           className="w-full rounded-xl border bg-white px-4 py-2 text-sm shadow-sm hover:bg-slate-50"
@@ -60,8 +138,11 @@ export default function Inbox() {
           <div key={i.id} className="rounded-2xl border bg-white p-4 shadow-sm">
             {(i.source_name || i.source_post_url) && (
               <div className="mb-2 flex items-center justify-between text-xs">
-                <span className="inline-flex items-center rounded-full border px-2 py-1 text-slate-700 bg-slate-50">
-                  {i.source_name ?? "Source"}
+                <span className="inline-flex items-center rounded-full border bg-slate-50 px-2 py-1 text-slate-700">
+                  {i.source_name ??
+                    (i.source_post_url && /tiktok\.com/i.test(i.source_post_url)
+                      ? "TikTok"
+                      : "Source")}
                 </span>
                 {i.source_post_url ? (
                   <a
