@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PageShell from "../components/PageShell";
 import { apiGet, apiPost } from "../app/api";
 
@@ -10,6 +10,7 @@ type IntakeItem = {
   source_id?: string | null;
   source_name?: string | null;
   source_post_url?: string | null;
+  source_type?: string | null;
 };
 
 export default function Inbox() {
@@ -21,6 +22,28 @@ export default function Inbox() {
   const [tiktokUrl, setTiktokUrl] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Preview state
+  const [openPreview, setOpenPreview] = useState<Record<string, boolean>>({});
+
+  function isTikTokUrl(url?: string | null) {
+    return !!url && /tiktok\.com/i.test(url);
+  }
+
+  function extractTikTokVideoId(url?: string | null): string | null {
+    if (!url) return null;
+    // Common canonical format: https://www.tiktok.com/@user/video/1234567890123456789
+    const m = url.match(/\/video\/(\d+)/i);
+    return m?.[1] ?? null;
+  }
+
+  function sourceLabel(i: IntakeItem) {
+    // IMPORTANT: If the post URL is TikTok, always label it "TikTok"
+    if (isTikTokUrl(i.source_post_url)) return "TikTok";
+    if (i.source_name) return i.source_name;
+    if (i.source_type) return i.source_type;
+    return "Source";
+  }
 
   async function load() {
     setError(null);
@@ -46,10 +69,6 @@ export default function Inbox() {
       return;
     }
 
-    // V1 behavior (per feature doc):
-    // - URL only => raw_text = "TikTok capture"
-    // - Notes only => raw_text = notes
-    // - Both => raw_text = notes
     const raw_text = noteText || (url ? "TikTok capture" : "");
 
     setSaving(true);
@@ -69,6 +88,22 @@ export default function Inbox() {
       setSaving(false);
     }
   }
+
+  function togglePreview(id: string) {
+    setOpenPreview((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  // Optional: auto-close previews for items that no longer exist after refresh
+  const itemIds = useMemo(() => new Set(items.map((i) => i.id)), [items]);
+  useEffect(() => {
+    setOpenPreview((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const [id, v] of Object.entries(prev)) {
+        if (itemIds.has(id)) next[id] = v;
+      }
+      return next;
+    });
+  }, [itemIds]);
 
   useEffect(() => {
     load();
@@ -134,39 +169,78 @@ export default function Inbox() {
           </div>
         )}
 
-        {items.map((i) => (
-          <div key={i.id} className="rounded-2xl border bg-white p-4 shadow-sm">
-            {(i.source_name || i.source_post_url) && (
-              <div className="mb-2 flex items-center justify-between text-xs">
-                <span className="inline-flex items-center rounded-full border bg-slate-50 px-2 py-1 text-slate-700">
-                  {i.source_name ??
-                    (i.source_post_url && /tiktok\.com/i.test(i.source_post_url)
-                      ? "TikTok"
-                      : "Source")}
-                </span>
-                {i.source_post_url ? (
-                  <a
-                    className="text-slate-700 underline"
-                    href={i.source_post_url}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open
-                  </a>
-                ) : (
-                  <span />
-                )}
+        {items.map((i) => {
+          const isTikTok = isTikTokUrl(i.source_post_url);
+          const videoId = extractTikTokVideoId(i.source_post_url);
+          const canPreview = isTikTok && !!videoId;
+          const previewOpen = !!openPreview[i.id];
+
+          return (
+            <div key={i.id} className="rounded-2xl border bg-white p-4 shadow-sm">
+              {(i.source_name || i.source_type || i.source_post_url) && (
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className="inline-flex items-center rounded-full border bg-slate-50 px-2 py-1 text-slate-700">
+                    {sourceLabel(i)}
+                  </span>
+
+                  <div className="flex items-center gap-3">
+                    {canPreview && (
+                      <button
+                        type="button"
+                        onClick={() => togglePreview(i.id)}
+                        className="text-slate-700 underline"
+                      >
+                        {previewOpen ? "Hide" : "Preview"}
+                      </button>
+                    )}
+
+                    {i.source_post_url ? (
+                      <a
+                        className="text-slate-700 underline"
+                        href={i.source_post_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open
+                      </a>
+                    ) : (
+                      <span />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <p className="whitespace-pre-wrap text-slate-900">{i.raw_text}</p>
+
+              {previewOpen && (
+                <div className="mt-3 space-y-2">
+                  {canPreview ? (
+                    <div className="overflow-hidden rounded-xl border bg-white">
+                      <div className="relative w-full" style={{ paddingTop: "177.78%" }}>
+                        <iframe
+                          className="absolute inset-0 h-full w-full"
+                          src={`https://www.tiktok.com/embed/v2/${videoId}`}
+                          title="TikTok preview"
+                          allow="encrypted-media; fullscreen"
+                          allowFullScreen
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border bg-slate-50 p-3 text-xs text-slate-700">
+                      Preview unavailable for this link. Use “Open” instead.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                <span>{new Date(i.captured_at).toLocaleString()}</span>
+                <span />
               </div>
-            )}
-
-            <p className="whitespace-pre-wrap text-slate-900">{i.raw_text}</p>
-
-            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-              <span>{new Date(i.captured_at).toLocaleString()}</span>
-              <span />
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </PageShell>
   );
