@@ -16,4 +16,5 @@ __all__ = [
     "Shelf",
     "BookShelf",
     "BookShelfHistory",
+    "OwnedItem",
 ]
