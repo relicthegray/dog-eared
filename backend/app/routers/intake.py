@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -24,7 +24,16 @@ class IntakeOut(BaseModel):
     status: str
     captured_at: datetime
     source_id: str | None
+    source_name: str | None
+    source_type: str | None
     source_post_url: str | None
+
+
+def _as_utc(dt: datetime) -> datetime:
+    # If DB returns naive datetime (common with SQLite), treat it as UTC.
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def _is_tiktok_url(url: str | None) -> bool:
@@ -34,10 +43,7 @@ def _is_tiktok_url(url: str | None) -> bool:
 
 
 def _ensure_tiktok_source(session: Session, user_id: UUID) -> UUID:
-    """
-    Find or create the user's canonical TikTok source and return its id.
-    Keeps this intentionally simple (no scraping / enrichment).
-    """
+    """Find or create the user's canonical TikTok Source and return its id."""
     existing = session.exec(
         select(Source).where(Source.user_id == user_id, Source.type == "tiktok")
     ).first()
@@ -50,12 +56,21 @@ def _ensure_tiktok_source(session: Session, user_id: UUID) -> UUID:
         name="TikTok",
         url=None,
         notes=None,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     session.add(s)
     session.commit()
     session.refresh(s)
     return s.id
+
+
+def _sources_by_id(session: Session, user_id: UUID, ids: set[UUID]) -> dict[UUID, Source]:
+    if not ids:
+        return {}
+    rows = session.exec(
+        select(Source).where(Source.user_id == user_id, Source.id.in_(ids))
+    ).all()
+    return {s.id: s for s in rows}
 
 
 @router.get("", response_model=list[IntakeOut])
@@ -70,17 +85,25 @@ def list_intake(
     stmt = stmt.order_by(IntakeItem.captured_at.desc())
     items = session.exec(stmt).all()
 
-    return [
-        IntakeOut(
-            id=str(i.id),
-            raw_text=i.raw_text,
-            status=i.status,
-            captured_at=i.captured_at,
-            source_id=str(i.source_id) if i.source_id else None,
-            source_post_url=i.source_post_url,
+    src_ids: set[UUID] = {i.source_id for i in items if i.source_id is not None}
+    src_map = _sources_by_id(session=session, user_id=user.id, ids=src_ids)
+
+    out: list[IntakeOut] = []
+    for i in items:
+        src = src_map.get(i.source_id) if i.source_id else None
+        out.append(
+            IntakeOut(
+                id=str(i.id),
+                raw_text=i.raw_text,
+                status=i.status,
+                captured_at=_as_utc(i.captured_at),
+                source_id=str(i.source_id) if i.source_id else None,
+                source_name=src.name if src else None,
+                source_type=src.type if src else None,
+                source_post_url=i.source_post_url,
+            )
         )
-        for i in items
-    ]
+    return out
 
 
 @router.post("", response_model=IntakeOut)
@@ -99,18 +122,26 @@ def create_intake(
         raw_text=payload.raw_text.strip(),
         source_id=source_id,
         source_post_url=payload.source_post_url,
-        captured_at=datetime.utcnow(),
+        captured_at=datetime.now(timezone.utc),
         status="new",
     )
     session.add(item)
     session.commit()
     session.refresh(item)
 
+    src = None
+    if item.source_id:
+        src = session.exec(
+            select(Source).where(Source.user_id == user.id, Source.id == item.source_id)
+        ).first()
+
     return IntakeOut(
         id=str(item.id),
         raw_text=item.raw_text,
         status=item.status,
-        captured_at=item.captured_at,
+        captured_at=_as_utc(item.captured_at),
         source_id=str(item.source_id) if item.source_id else None,
+        source_name=src.name if src else None,
+        source_type=src.type if src else None,
         source_post_url=item.source_post_url,
     )
